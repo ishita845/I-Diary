@@ -1,6 +1,24 @@
+# Dependencies
+node_modules/
+
 # Environment variables
-node_modules
 .env
 .env.local
-.env.development
 .env.production
+.env.development
+
+# Build output
+dist
+build
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel
