@@ -62,42 +62,44 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [success, setSuccess] = useState("");
 
   /* ================= LOGIN (EMAIL + PASSWORD) ================= */
+  
 const handleLogin = async (e: React.FormEvent) => {
   e.preventDefault();
   setError("");
   setSuccess("");
 
-  if (!formData.email || !formData.password) {
-    setError("Please enter email and password");
-    return;
-  }
-
   try {
-    await signInWithEmailAndPassword(
+    const cred = await signInWithEmailAndPassword(
       auth,
       formData.email.trim(),
       formData.password
     );
 
-    // 🔥 DO NOT PASS EMAIL / USERNAME
-onLogin(auth.currentUser!.email!);
-  } catch (err: any) {
-    if (err.code === "auth/wrong-password") {
-      setError("Incorrect password");
-    } else if (err.code === "auth/user-not-found") {
-      setError("No account found with this email");
+    // ✅ ALWAYS FETCH USERNAME FROM FIRESTORE
+    const snap = await getDoc(doc(db, "users", cred.user.uid));
+
+    if (snap.exists() && snap.data().username) {
+      onLogin(snap.data().username);
     } else {
-      setError("Login failed");
+      setError("Username not found. Please contact support.");
     }
+  } catch {
+    setError("Invalid login credentials");
   }
 };
 
 
+
   /* ================= SIGNUP ================= */
-  const handleSignup = async (e: React.FormEvent) => {
+ const handleSignup = async (e: React.FormEvent) => {
   e.preventDefault();
   setError("");
   setSuccess("");
+
+  if (!formData.username.trim()) {
+    setError("Username is required");
+    return;
+  }
 
   if (!formData.email || !formData.password || !formData.confirmPassword) {
     setError("Please fill all fields");
@@ -116,15 +118,14 @@ onLogin(auth.currentUser!.email!);
       formData.password
     );
 
-    // OPTIONAL: store username for display
-    if (formData.username) {
-      await setDoc(doc(db, "users", userCred.user.uid), {
-        username: formData.username,
-        email: formData.email,
-      });
-    }
+    // ✅ SAVE USERNAME
+    await setDoc(doc(db, "users", userCred.user.uid), {
+      username: formData.username.trim(),
+      email: formData.email.trim(),
+    });
 
-    onLogin(userCred.user.uid);
+    // ✅ IMMEDIATELY USE USERNAME (NOT UID / EMAIL)
+    onLogin(formData.username.trim());
   } catch (err: any) {
     if (err.code === "auth/email-already-in-use") {
       setError("Account already exists. Please login.");
@@ -133,6 +134,7 @@ onLogin(auth.currentUser!.email!);
     }
   }
 };
+
 
 
   /* ================= FORGOT PASSWORD ================= */
@@ -337,7 +339,7 @@ return (
   type="text"
   value={formData.email}
   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-  placeholder="Enter your email"
+  placeholder="Enter your registered email address"
   className="w-full pl-10 pr-4 py-3 rounded-lg border-2 border-pink-200 dark:border-purple-700 bg-white dark:bg-gray-800 text-pink-900 dark:text-purple-100 placeholder:text-pink-400 dark:placeholder:text-purple-500 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-200 dark:focus:ring-purple-900"
 />
 

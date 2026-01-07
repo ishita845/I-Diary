@@ -142,6 +142,7 @@ export function DailyEntries() {
       return;
     }
 
+
     const updated = entries.map((e) =>
       e.id === editingId ? ({ ...e, ...editEntry } as DiaryEntry) : e
     );
@@ -152,6 +153,10 @@ export function DailyEntries() {
     );
 
     setEntries(updated);
+    setEditingId(null);
+    setEditEntry({});
+  };
+   const handleCancelEdit = () => {
     setEditingId(null);
     setEditEntry({});
   };

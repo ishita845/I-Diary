@@ -33,32 +33,40 @@ useEffect(() => {
 }, [activeTab]);
 
   /* 🔐 FIREBASE AUTH PERSISTENCE */
-useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      let username = "";
-
-      if (user.phoneNumber) {
-        username = user.phoneNumber;
-      } else if (user.email) {
-        try {
-          const snap = await getDoc(doc(db, "usernames", user.email));
-          username = snap.exists() ? snap.id : user.email;
-        } catch {
-          username = user.email;
-        }
-      }
-
-      setCurrentUser(username);
 
       // ✅ RESTORE LAST OPEN TAB HERE (THIS IS THE FIX)
+    
+useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      setCurrentUser(null);
+      setActiveTab("daily");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const snap = await getDoc(doc(db, "users", user.uid));
+
+      if (snap.exists() && snap.data().username) {
+        // ✅ ALWAYS USE SAVED USERNAME
+        setCurrentUser(snap.data().username);
+      } else if (user.phoneNumber) {
+        setCurrentUser(user.phoneNumber);
+      } else if (user.email) {
+        setCurrentUser(user.email);
+      } else {
+        setCurrentUser(user.uid);
+      }
+
+      // ✅ Restore last opened tab for THIS user
       const savedTab = localStorage.getItem(`activeTab_${user.uid}`);
       if (savedTab) {
         setActiveTab(savedTab);
       }
-    } else {
-      setCurrentUser(null);
-      setActiveTab("daily");
+    } catch (e) {
+      console.error("Failed to load username", e);
+      setCurrentUser(user.email || user.uid);
     }
 
     setLoading(false);
@@ -67,6 +75,7 @@ useEffect(() => {
   return () => unsubscribe();
 }, []);
 
+  
 
   /* OPTIONAL: last saved timestamp later */
   useEffect(() => {
