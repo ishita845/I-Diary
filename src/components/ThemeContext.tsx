@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState } from "react";
 
-type Theme = 'light' | 'dark';
+type Theme = "light" | "dark";
 
 interface ThemeContextType {
   theme: Theme;
@@ -9,48 +9,30 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-// Apply theme immediately to prevent flash
-if (typeof window !== 'undefined') {
-  // TODO: Get theme preference from Firebase
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const initialTheme = prefersDark ? 'dark' : 'light';
-  
-  if (initialTheme === 'dark') {
-    document.documentElement.classList.add('dark');
-  } else {
-    document.documentElement.classList.remove('dark');
-  }
-}
-
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  // Initialize with system preference
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === 'undefined') return 'light';
-    
-    // TODO: Get theme preference from Firebase
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    return prefersDark ? 'dark' : 'light';
+    // ✅ load saved theme or default to light
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("theme") as Theme) || "light";
+    }
+    return "light";
   });
 
-  // Apply theme to document whenever it changes
+  // ✅ APPLY THEME TO <html>
   useEffect(() => {
     const root = document.documentElement;
-    
-    // TODO: Save theme preference to Firebase
-    
-    // Apply or remove dark class
-    if (theme === 'dark') {
-      root.classList.add('dark');
+
+    if (theme === "dark") {
+      root.classList.add("dark");
     } else {
-      root.classList.remove('dark');
+      root.classList.remove("dark");
     }
-    
-    // Add smooth transition class
-    root.style.transition = 'background-color 0.3s ease, color 0.3s ease';
+
+    localStorage.setItem("theme", theme);
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
   return (
@@ -62,8 +44,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export function useTheme() {
   const context = useContext(ThemeContext);
-  if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider');
+  if (!context) {
+    throw new Error("useTheme must be used within ThemeProvider");
   }
   return context;
 }

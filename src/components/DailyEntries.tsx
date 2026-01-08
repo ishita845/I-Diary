@@ -7,6 +7,7 @@ import {
   Check,
   X,
   List,
+  Image as ImageIcon ,
 } from "lucide-react";
 import { DiaryCalendar } from "./DiaryCalendar";
 
@@ -31,6 +32,7 @@ interface DiaryEntry {
   content: string;
   mood?: string;
   weather?: string;
+   image?: string; // base64 encoded image
 }
 
 /* ================= COMPONENT ================= */
@@ -50,6 +52,7 @@ export function DailyEntries() {
     content: "",
     mood: "neutral",
     weather: "sunny",
+     image: '',
   });
 
   const [editEntry, setEditEntry] = useState<Partial<DiaryEntry>>({});
@@ -123,7 +126,44 @@ export function DailyEntries() {
       content: "",
       mood: "neutral",
       weather: "sunny",
+       image: '',
     });
+  };
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image size must be less than 2MB');
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      if (isEdit) {
+        setEditEntry({ ...editEntry, image: base64String });
+      } else {
+        setNewEntry({ ...newEntry, image: base64String });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Remove image
+  const handleRemoveImage = (isEdit: boolean = false) => {
+    if (isEdit) {
+      setEditEntry({ ...editEntry, image: '' });
+    } else {
+      setNewEntry({ ...newEntry, image: '' });
+    }
   };
 
   /* ================= EDIT ================= */
@@ -352,6 +392,44 @@ export function DailyEntries() {
             />
           </div>
 
+          {/* Image Upload */}
+          <div>
+            <label className="block text-pink-900 dark:text-pink-200 mb-2 flex items-center gap-2">
+              <ImageIcon className="w-4 h-4" />
+              Add a Photo (Optional)
+            </label>
+            {newEntry.image ? (
+              <div className="relative">
+                <img 
+                  src={newEntry.image} 
+                  alt="Diary entry" 
+                  className="w-full max-h-64 object-cover rounded-lg border-2 border-pink-300 dark:border-purple-700"
+                />
+                <button
+                  onClick={() => handleRemoveImage(false)}
+                  className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-all shadow-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="border-2 border-dashed border-pink-300 dark:border-purple-700 rounded-lg p-6 text-center hover:border-purple-400 transition-all">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleImageUpload(e, false)}
+                  className="hidden"
+                  id="image-upload-new"
+                />
+                <label htmlFor="image-upload-new" className="cursor-pointer">
+                  <ImageIcon className="w-12 h-12 mx-auto text-pink-400 dark:text-purple-400 mb-2" />
+                  <p className="text-pink-900 dark:text-pink-200">Click to upload an image</p>
+                  <p className="text-xs text-pink-600 dark:text-pink-400 mt-1">Max size: 2MB</p>
+                </label>
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2">
             <button
               onClick={handleAdd}
@@ -503,9 +581,20 @@ export function DailyEntries() {
                             "{entry.title}"
                           </h3>
                         )}
-                        <div className="whitespace-pre-wrap text-pink-900 dark:text-pink-100 leading-relaxed text-lg">
+                        <div className="whitespace-pre-wrap text-pink-900 dark:text-pink-100 leading-relaxed text-lg mb-4">
                           {entry.content}
                         </div>
+
+                        {/* Entry Image */}
+                        {entry.image && (
+                          <div className="mt-4">
+                            <img 
+                              src={entry.image} 
+                              alt="Diary memory" 
+                              className="w-full max-h-96 object-cover rounded-lg border-2 border-pink-300 dark:border-purple-700 shadow-md"
+                            />
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
@@ -644,9 +733,20 @@ export function DailyEntries() {
                     )}
 
                     {/* Entry Content */}
-                    <div className="whitespace-pre-wrap text-pink-900 dark:text-pink-100 leading-relaxed text-lg">
+                    <div className="whitespace-pre-wrap text-pink-900 dark:text-pink-100 leading-relaxed text-lg mb-4">
                       {entry.content}
                     </div>
+
+                    {/* Entry Image */}
+                    {entry.image && (
+                      <div className="mt-4">
+                        <img 
+                          src={entry.image} 
+                          alt="Diary memory" 
+                          className="w-full max-h-96 object-cover rounded-lg border-2 border-pink-300 dark:border-purple-700 shadow-md"
+                        />
+                      </div>
+                    )}
                   </>
                 )}
               </div>

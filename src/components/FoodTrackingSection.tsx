@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
+import React from 'react';
 import {
   Calendar,
+  Plus,
   IndianRupee,
   Download,
+  Trash2,
   X,
   Check,
   Coffee,
@@ -12,21 +15,17 @@ import {
   ChevronRight,
   Loader,
   Save,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { auth, db } from "../config/firebase";
-import {
-  doc,
-  setDoc,
-  getDoc,
-} from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth, db } from '../config/firebase';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 /* ================= TYPES ================= */
 
 interface MealEntry {
-  mealType: "Breakfast" | "Lunch" | "Dinner";
-  regular: boolean;
+  mealType: 'Breakfast' | 'Lunch' | 'Dinner';
+  eaten: boolean;
   extra: boolean;
   extraAmount: number;
   foodDetails: string;
@@ -47,8 +46,6 @@ interface MonthData {
   dayEntries: DayEntry[];
 }
 
-/* ================= ICONS ================= */
-
 const MEAL_ICONS = {
   Breakfast: Coffee,
   Lunch: Sun,
@@ -63,15 +60,15 @@ export function FoodTrackingSection() {
   const [selectedMonth, setSelectedMonth] = useState(
     new Date().toISOString().substring(0, 7)
   );
-  const [vendorName, setVendorName] = useState("");
+
+  const [vendorName, setVendorName] = useState('');
   const [fixedRegularAmount, setFixedRegularAmount] = useState(0);
   const [dayEntries, setDayEntries] = useState<DayEntry[]>([]);
-  const [allMonthData, setAllMonthData] = useState<MonthData[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState(true);
 
   const [saveStatus, setSaveStatus] =
-    useState<"saved" | "saving" | "error">("saved");
+    useState<'saved' | 'saving' | 'error'>('saved');
 
   /* ================= AUTH ================= */
 
@@ -82,118 +79,76 @@ export function FoodTrackingSection() {
     return () => unsub();
   }, []);
 
-  /* ================= LOAD FIREBASE ================= */
+  /* ================= LOAD MONTH ================= */
 
   useEffect(() => {
     if (!userId) return;
 
-    const loadData = async () => {
-      const ref = doc(db, "users", userId, "foodTracking", "data");
-      const snap = await getDoc(ref);
+    const ref = doc(db, 'users', userId, 'foodTracking', selectedMonth);
 
+    const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) {
-        const months = snap.data().months as MonthData[];
-        setAllMonthData(months);
-        const current = months.find((m) => m.month === selectedMonth);
-        if (current) {
-          setVendorName(current.vendorName);
-          setFixedRegularAmount(current.fixedRegularAmount);
-          setDayEntries(current.dayEntries);
-        } else {
-          setDayEntries(generateMonthEntries(selectedMonth));
-        }
+        const data = snap.data() as MonthData;
+        setVendorName(data.vendorName);
+        setFixedRegularAmount(data.fixedRegularAmount);
+        setDayEntries(data.dayEntries);
       } else {
+        setVendorName('');
+        setFixedRegularAmount(0);
         setDayEntries(generateMonthEntries(selectedMonth));
       }
-    };
+    });
 
-    loadData();
+    return () => unsub();
   }, [userId, selectedMonth]);
 
-  /* ================= SAVE FIREBASE ================= */
-  const saveData = async () => {
-  if (!userId) return;
+  /* ================= SAVE ================= */
 
-  setSaveStatus("saving");
-
-  try {
-    const monthData: MonthData = {
-      month: selectedMonth,
-      vendorName,
-      fixedRegularAmount,
-      dayEntries,
-    };
-
-    const updated = allMonthData.filter(
-      (m) => m.month !== selectedMonth
-    );
-    updated.push(monthData);
-    updated.sort((a, b) => b.month.localeCompare(a.month));
-
-    setAllMonthData(updated);
-
-    await setDoc(
-      doc(db, "users", userId, "foodTracking", "data"),
-      { months: updated }
-    );
-
-    setSaveStatus("saved");
-  } catch (error) {
-    console.error("Manual save failed:", error);
-    setSaveStatus("error");
-  }
-};
-
-
-  const saveMonth = async (updatedMonths: MonthData[]) => {
+  const saveMonth = async () => {
     if (!userId) return;
 
-    setSaveStatus("saving");
     try {
+      setSaveStatus('saving');
+
       await setDoc(
-        doc(db, "users", userId, "foodTracking", "data"),
-        { months: updatedMonths }
+        doc(db, 'users', userId, 'foodTracking', selectedMonth),
+        {
+          month: selectedMonth,
+          vendorName,
+          fixedRegularAmount,
+          dayEntries,
+        }
       );
-      setSaveStatus("saved");
-    } catch {
-      setSaveStatus("error");
+
+      setSaveStatus('saved');
+    } catch (e) {
+      console.error(e);
+      setSaveStatus('error');
     }
   };
 
   useEffect(() => {
-    if (!userId || dayEntries.length === 0) return;
-
-    const monthData: MonthData = {
-      month: selectedMonth,
-      vendorName,
-      fixedRegularAmount,
-      dayEntries,
-    };
-
-    const updated = allMonthData.filter((m) => m.month !== selectedMonth);
-    updated.push(monthData);
-    updated.sort((a, b) => b.month.localeCompare(a.month));
-
-    setAllMonthData(updated);
-    saveMonth(updated);
+    if (dayEntries.length > 0) {
+      saveMonth();
+    }
   }, [dayEntries, vendorName, fixedRegularAmount]);
 
   /* ================= HELPERS ================= */
 
   function generateMonthEntries(month: string): DayEntry[] {
-    const [y, m] = month.split("-").map(Number);
-    const days = new Date(y, m, 0).getDate();
+    const [year, monthNum] = month.split('-').map(Number);
+    const days = new Date(year, monthNum, 0).getDate();
 
     return Array.from({ length: days }, (_, i) => {
-      const d = new Date(y, m - 1, i + 1);
+      const d = new Date(year, monthNum - 1, i + 1);
       return {
-        date: d.toISOString().split("T")[0],
-        day: d.toLocaleDateString("en-US", { weekday: "short" }),
+        date: d.toISOString().split('T')[0],
+        day: d.toLocaleDateString('en-US', { weekday: 'short' }),
         expanded: false,
         meals: [
-          { mealType: "Breakfast", regular: true, extra: false, extraAmount: 0, foodDetails: "", notes: "" },
-          { mealType: "Lunch", regular: true, extra: false, extraAmount: 0, foodDetails: "", notes: "" },
-          { mealType: "Dinner", regular: true, extra: false, extraAmount: 0, foodDetails: "", notes: "" },
+          { mealType: 'Breakfast', eaten: false, extra: false, extraAmount: 0, foodDetails: '', notes: '' },
+          { mealType: 'Lunch', eaten: false, extra: false, extraAmount: 0, foodDetails: '', notes: '' },
+          { mealType: 'Dinner', eaten: false, extra: false, extraAmount: 0, foodDetails: '', notes: '' },
         ],
       };
     });
@@ -209,49 +164,45 @@ export function FoodTrackingSection() {
     updated[dayIndex].meals[mealIndex] = {
       ...updated[dayIndex].meals[mealIndex],
       [field]: value,
-      ...(field === "extra" && !value ? { extraAmount: 0, foodDetails: "" } : {}),
+      ...(field === 'extra' && !value ? { extraAmount: 0, foodDetails: '' } : {}),
     };
     setDayEntries(updated);
   };
+
   const toggleDayExpanded = (index: number) => {
     const updated = [...dayEntries];
     updated[index].expanded = !updated[index].expanded;
     setDayEntries(updated);
   };
 
+  const handleDateClick = (day: number) => {
+    const [year, monthNum] = selectedMonth.split('-');
+    const dateStr = `${year}-${monthNum}-${String(day).padStart(2, '0')}`;
+    setSelectedDate(dateStr);
+
+    const index = dayEntries.findIndex(d => d.date === dateStr);
+    if (index !== -1) {
+      const updated = [...dayEntries];
+      updated[index].expanded = true;
+      setDayEntries(updated);
+    }
+  };
+  // ✅ UI COMPATIBILITY FIX (DO NOT REMOVE)
+const saveData = async () => {
+  await saveMonth();
+};
+
   const expandAll = () => {
     const updated = dayEntries.map(entry => ({ ...entry, expanded: true }));
     setDayEntries(updated);
   };
-
-  const collapseAll = () => {
-    const updated = dayEntries.map(entry => ({ ...entry, expanded: false }));
-    setDayEntries(updated);
-  };
-
-  /* ================= CALENDAR ================= */
-
-  const calendarDays = (() => {
-    const [y, m] = selectedMonth.split("-").map(Number);
-    const first = new Date(y, m - 1, 1).getDay();
-    const total = new Date(y, m, 0).getDate();
-    return [...Array(first).fill(null), ...Array.from({ length: total }, (_, i) => i + 1)];
-  })();
-
-  const datesWithExtra = dayEntries
-    .filter((d) => d.meals.some((m) => m.extra))
-    .map((d) => d.date);
-
-  const selectedDayData = selectedDate
-    ? dayEntries.find((d) => d.date === selectedDate)
-    : null;
-     const exportToCSV = () => {
+  const exportToCSV = () => {
     const rows: string[] = [
       `Food Tracking - ${selectedMonth}`,
       `Vendor: ${vendorName}`,
       `Fixed Regular Amount: ₹${fixedRegularAmount}`,
       '',
-      'Date,Day,Meal Type,Regular,Extra,Extra Amount,Food Details,Notes',
+      'Date,Day,Meal Type,Eaten,Extra,Extra Amount,Food Details,Notes',
     ];
 
     dayEntries.forEach(day => {
@@ -260,7 +211,7 @@ export function FoodTrackingSection() {
           day.date,
           day.day,
           meal.mealType,
-          meal.regular ? 'Yes' : 'No',
+          meal.eaten ? 'Yes' : 'No',
           meal.extra ? 'Yes' : 'No',
           meal.extraAmount,
           meal.foodDetails,
@@ -278,65 +229,51 @@ export function FoodTrackingSection() {
     link.click();
   };
 
-  /* ================= TOTALS ================= */
+
+  const collapseAll = () => {
+    const updated = dayEntries.map(entry => ({ ...entry, expanded: false }));
+    setDayEntries(updated);
+  };
+  const calendarDays = (() => {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const first = new Date(y, m - 1, 1).getDay();
+    const days = new Date(y, m, 0).getDate();
+    return [
+      ...Array(first).fill(null),
+      ...Array.from({ length: days }, (_, i) => i + 1),
+    ];
+  })();
 
   const totalExtraFood = dayEntries.reduce(
-    (s, d) => s + d.meals.reduce((m, x) => m + (x.extra ? x.extraAmount : 0), 0),
+    (sum, d) =>
+      sum +
+      d.meals.reduce(
+        (s, m) => s + (m.extra ? m.extraAmount : 0),
+        0
+      ),
     0
   );
 
   const totalFoodExpense = fixedRegularAmount + totalExtraFood;
-
-  // Calendar generation
-  const generateCalendar = () => {
-    const [year, monthNum] = selectedMonth.split('-').map(Number);
-    const firstDay = new Date(year, monthNum - 1, 1);
-    const lastDay = new Date(year, monthNum, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    const calendar: (number | null)[] = [];
-    
-    // Add empty cells for days before month starts
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      calendar.push(null);
-    }
-    
-    // Add days of month
-    for (let day = 1; day <= daysInMonth; day++) {
-      calendar.push(day);
-    }
-
-    return calendar;
+    const getDayMeals = (dateStr: string) => {
+    const dayData = dayEntries.find(d => d.date === dateStr);
+    if (!dayData) return [];
+    // Only show meals where "eaten" (regular) is checked
+    return dayData.meals
+      .filter(m => m.eaten === true)
+      .map(m => m.mealType.substring(0, 1)); // B, L, D
   };
+    // Get dates with extra food for calendar highlighting
+  const datesWithExtra = dayEntries
+    .filter(day => day.meals.some(meal => meal.extra))
+    .map(day => day.date);
 
- 
+     const selectedDayData = selectedDate ? dayEntries.find(d => d.date === selectedDate) : null;
 
-  const handleDateClick = (day: number) => {
-    const [year, monthNum] = selectedMonth.split('-');
-    const dateStr = `${year}-${monthNum}-${String(day).padStart(2, '0')}`;
-    setSelectedDate(dateStr);
-    
-    // Expand the clicked day
-    const dayIndex = dayEntries.findIndex(d => d.date === dateStr);
-    if (dayIndex !== -1) {
-      const updated = [...dayEntries];
-      updated[dayIndex].expanded = true;
-      setDayEntries(updated);
-      
-      // Scroll to the day
-      setTimeout(() => {
-        const element = document.getElementById(`day-${dateStr}`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 100);
-    }
-  };
+  /* ================= UI (UNCHANGED) ================= */
 
 
 
-  /* ================= UI ================= */
 
 
 
@@ -450,6 +387,7 @@ export function FoodTrackingSection() {
 
                   const [year, monthNum] = selectedMonth.split('-');
                   const dateStr = `${year}-${monthNum}-${String(day).padStart(2, '0')}`;
+                  const dayMeals = getDayMeals(dateStr);
                   const hasExtra = datesWithExtra.includes(dateStr);
                   const isSelected = selectedDate === dateStr;
                   const isToday = dateStr === new Date().toISOString().split('T')[0];
@@ -458,7 +396,7 @@ export function FoodTrackingSection() {
                     <button
                       key={day}
                       onClick={() => handleDateClick(day)}
-                      className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-all hover:shadow-md ${
+                      className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-all hover:shadow-md p-1 ${
                         isSelected
                           ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg scale-105'
                           : isToday
@@ -469,8 +407,8 @@ export function FoodTrackingSection() {
                       }`}
                     >
                       <span className="font-medium">{day}</span>
-                      {hasExtra && (
-                        <span className="text-xs mt-1">🍴</span>
+                      {dayMeals.length > 0 && (
+                        <span className="text-xs font-semibold">{dayMeals.join('')}</span>
                       )}
                     </button>
                   );
@@ -510,7 +448,9 @@ export function FoodTrackingSection() {
 
           {selectedDayData ? (
             <div className="space-y-3">
-              {selectedDayData.meals.map((meal, idx) => {
+              {selectedDayData.meals
+                .filter(meal => meal.eaten) // Only show meals that were eaten
+                .map((meal, idx) => {
                 const Icon = MEAL_ICONS[meal.mealType];
                 return (
                   <div
@@ -552,6 +492,13 @@ export function FoodTrackingSection() {
                   </div>
                 );
               })}
+
+              {/* Show message if no meals eaten */}
+              {selectedDayData.meals.filter(m => m.eaten).length === 0 && (
+                <p className="text-sm text-pink-600 dark:text-purple-400 text-center py-4 italic">
+                  No meals recorded for this day
+                </p>
+              )}
 
               {/* Day Total */}
               <div className="pt-3 border-t-2 border-purple-200 dark:border-purple-700">
@@ -674,8 +621,8 @@ export function FoodTrackingSection() {
                           <td className="px-3 py-2 text-center">
                             <input
                               type="checkbox"
-                              checked={meal.regular}
-                              onChange={(e) => updateMeal(dayIndex, mealIndex, 'regular', e.target.checked)}
+                              checked={meal.eaten}
+                              onChange={(e) => updateMeal(dayIndex, mealIndex, 'eaten', e.target.checked)}
                               className="w-4 h-4 rounded border-pink-300 dark:border-purple-600 text-green-600 focus:ring-green-500 focus:ring-2 cursor-pointer"
                             />
                           </td>
@@ -785,4 +732,3 @@ export function FoodTrackingSection() {
     </div>
   );
 }
-
